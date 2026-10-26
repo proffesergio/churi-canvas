@@ -1,56 +1,156 @@
+<div align="center">
+
+<img src="src/app/icon.svg" alt="ChuriCanvas bangle mark" width="64" />
+
 # ChuriCanvas
 
-Mobile-first handmade bangle shop for Bangladesh, built with Next.js App Router, React, TypeScript, Tailwind CSS, Lucide, TanStack Query, signed HTTP-only cookie sessions and PostgreSQL. Your nine original photos are served from public/products; all titles and images are editable in /admin.
+### A little tradition. A lot of you.
 
-## Run locally
+A mobile-first shop for handmade Bangladeshi bangles — from finding your colour to following your order home.
 
-Use Node.js 24 LTS and npm. A private .env.local has been generated for this workspace. It contains your admin email, random password and session secret. It is excluded from Git and Vercel uploads. For a fresh clone, copy .env.example to .env.local, set ADMIN_EMAIL, choose an ADMIN_PASSWORD of at least 12 characters, and generate SESSION_SECRET with node -e "console.log(require('crypto').randomBytes(48).toString('hex'))".
+[**Explore the live shop ↗**](https://churicanvas.vercel.app) · [Features](#made-for-everyday-celebrations) · [Get started](#run-it-locally) · [Operations guide](docs/OPERATIONS.md)
 
-1. npm install
-2. npm run lint
-3. npm run typecheck
-4. npm test
-5. npm run build
-6. npm run start
+[![CI](https://github.com/proffesergio/churi-canvas/actions/workflows/ci.yml/badge.svg)](https://github.com/proffesergio/churi-canvas/actions/workflows/ci.yml)
+![Next.js](https://img.shields.io/badge/Next.js-App_Router-302a28?style=flat-square&logo=nextdotjs)
+![Handmade in Bangladesh](https://img.shields.io/badge/Handmade_in-Bangladesh-792b38?style=flat-square)
+![Version](https://img.shields.io/badge/Release-v1_MVP-b89468?style=flat-square)
 
-Open http://localhost:3000. Use /admin and the credentials from .env.local. For development, npm run dev supports hot reload. npm run test:e2e runs against a started server and leaves one clearly labelled demo order; use only a disposable local/test database. SMOKE_URL can select another local test server, never production.
+</div>
 
-Without DATABASE_URL, the app saves local demo data to data/store.json using a serialized queue and atomic file replacement. Run one local server process. Do not use local file storage across replicas or serverless hosts. The UI marks this mode explicitly. Vercel rejects storage operations unless DATABASE_URL is configured.
+---
 
-## Connect Neon / PostgreSQL and Vercel
+## Little circles. Distinct personalities.
 
-1. Create a Neon PostgreSQL database. Set DATABASE_URL to its pooled PostgreSQL connection string, including sslmode=require, in .env.local or Vercel. The adapter creates one churicanvas_state table on first use. Use a dedicated database/role with table creation permission for initial setup. Local demo data is not automatically imported into PostgreSQL.
-2. Create a new GitHub repository, initialize this directory with Git, and push main. Do not commit .env.local or data/. A package-lock.json must be committed with package.json.
-3. Create a Vercel Next.js project and configure production DATABASE_URL, ADMIN_EMAIL, ADMIN_PASSWORD and SESSION_SECRET. Use fresh production values, not local or CI credentials. Restrict database and Vercel access to the store owner.
-4. Add repository/environment secrets VERCEL_TOKEN, VERCEL_ORG_ID and VERCEL_PROJECT_ID. The included .github/workflows/ci.yml checks lint, types, unit tests, production build and the storefront-to-admin pipeline. Successful pushes to main then deploy production through Vercel CLI. Pull requests only verify.
-5. If using this GitHub Actions deployment, disable Vercel's automatic Git production deployments so production waits for the verification job. Alternatively use Vercel's Git integration and remove the CLI deploy job.
+Real product photography, traditional details, and small touches that make each set personal.
 
-Accounts and database credentials have intentionally not been provisioned. No public deployment is claimed until those are connected. Email shown in the storefront is a placeholder contact: replace it before launch.
+<table>
+  <tr>
+    <td align="center" width="33%"><img src="public/products/7.jpeg" alt="Crimson silk bangles with gold floral mirror details" width="250" /></td>
+    <td align="center" width="33%"><img src="public/products/5.jpeg" alt="Green silk bangles with pink and gold mirror embellishments" width="250" /></td>
+    <td align="center" width="33%"><img src="public/products/3.jpeg" alt="Blue, pink and crimson square silk-wrapped bangles" width="250" /></td>
+  </tr>
+  <tr>
+    <td align="center"><strong>Laal Golap</strong><br /><sub>A little festive colour</sub></td>
+    <td align="center"><strong>Mehendi Mirror</strong><br /><sub>Traditional details, a personal touch</sub></td>
+    <td align="center"><strong>Trio of Traditions</strong><br /><sub>A different kind of everyday</sub></td>
+  </tr>
+</table>
 
-## Customer flow
+The starter collection includes **nine real product photos**. Titles, prices, availability, and image galleries are editable from the admin workspace.
 
-Browse / or /shop, filter/sort/search, save favourites, select size 2.4, 2.6 or 2.8, add a customization note, and check out in /cart. Inside Dhaka costs ৳70 and outside Dhaka ৳130. Prices are whole BDT. The server calculates every total, combines stock demand across duplicate lines, and reserves inventory transactionally. An idempotency key prevents duplicate orders on a retry. Stock edits use a revision check to prevent stale admin forms from overwriting checkout changes.
+## Made for everyday celebrations
 
-Customers receive a signed anonymous customer session; accounts and cross-device sign-in are not implemented. This session links orders to browser history. /track polls every 10 seconds and accepts a private order link with a high-entropy capability token. Public tracking returns status, order lines and total, without names, phones or addresses. Keep private links confidential. The shopper must save their link for access from another browser.
+| For the shopper | For the maker |
+| --- | --- |
+| Browse, search, filter, and sort the collection | Add, edit, hide, and delete products |
+| Save favourites and keep a bag on the same device | Set BDT prices and stock for each size |
+| Choose **2.4, 2.6, or 2.8** and add a custom note | Upload multiple photos and choose a cover |
+| Check out with a Bangladeshi mobile number and address | Review addresses, payment methods, and custom notes |
+| Choose **Inside Dhaka / Outside Dhaka** delivery | Update fulfilment status from a phone |
+| Follow a private order-tracking link | View storefront events and try social-channel simulations |
 
-COD is an actual order method with payment due on delivery. bKash and Nagad are explicitly mock workflows: no money moves, no PIN is requested, and transaction references are not verified by a provider. Admin shows those orders as Mock payment. Customization requests need a phone confirmation; delivery times are not guaranteed by the demo.
+**Built around Bangladesh:** prices in **৳ BDT**, cash on delivery, local delivery zones, and clearly labelled **bKash / Nagad demo workflows**.
 
-## Admin and integrations
+**Designed for a phone:** thumb-friendly bottom navigation, responsive product grids, mobile filter sheets, touch-sized controls, and an admin workspace that fits a small screen.
 
-/admin protects server rendering and every admin API. Admin sessions expire after 8 hours; customer sessions after 30 days. Cookies use HttpOnly, SameSite=Lax and Secure in production. Mutations require a matching Origin. Login attempts are limited in persistent storage; product and checkout payloads are validated at the API boundary. Admin can edit titles/descriptions, whole-BDT prices, category, label, per-size stock, visibility, and up to five images; uploaded photos are resized in the browser and saved durably as validated image data. Original photos remain selectable. Hiding is reversible; deleting removes the product while preserving historical order snapshots.
+### From a favourite to a doorstep
 
-Order statuses are Pending → Processing → In Transit → Delivered. Admin can correct a status backwards, and every change is recorded. Order cancellation, stock restoration and refunds are not included.
+**Choose a piece → Pick a size → Add your note → Check out → Save your private tracking link**
 
-Social studio simulates Facebook catalog sync, TikTok variant/video-anchor sync and an inbound Messenger enquiry. All simulations are protected admin actions. A Messenger enquiry does not automatically create an order. No outbound messages are sent and no external credentials are used. Analytics records actual local PageView, AddToCart and server-side Purchase events; ad spend and ROAS remain unavailable until real integrations are connected. Counts are events rather than unique users; the latest 10,000 events are retained.
+`Pending → Processing → In Transit → Delivered`
 
-The Fetch wrapper retries safe reads on network/5xx errors with exponential backoff and a timeout. Mutations never retry automatically. TanStack Query refreshes storefront and admin data, errors have user-facing toasts, and page/global error boundaries support recovery.
+The server calculates totals from current inventory, checks stock across duplicate bag lines, and reserves it transactionally. Checkout retries reuse an idempotency key. Admin inventory edits use revision checks so an older form cannot overwrite a newer stock change.
 
-## Operating limits
+## A small shop, thoughtfully connected
 
-The PostgreSQL adapter uses one locked JSONB state row, appropriate for a small single-shop catalog. This keeps stock reservation atomic without a large ORM. Normalize products/orders/events into separate indexed tables before high-volume traffic or large imports. In local demo mode without cloud credentials, validated photos are stored inline. When cloud storage is configured, uploads use the private Neon assets bucket and are served through the application’s image endpoint. Configure AWS_ENDPOINT_URL_S3, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION and optionally NEON_STORAGE_BUCKET (defaults to assets) before using uploads with PostgreSQL/Vercel. Local storage requires a browser that permits it. No service worker or offline checkout is provided.
+- **Private by default:** signed HTTP-only customer/admin sessions, protected admin APIs, validated requests, and order tracking that omits contact details.
+- **A resilient storefront:** TanStack Query synchronization, safe-read retries, request timeouts, toast feedback, and recovery screens.
+- **A social studio to explore:** simulated Facebook catalog sync, TikTok product/variant anchors, and inbound Messenger enquiries.
+- **Useful signals:** PageView, AddToCart, and server-recorded Purchase events.
 
-Before real sales: connect production PostgreSQL, confirm operational delivery fees/contact details, replace mock payments and social channels where desired, and arrange database backups. Production secrets, live provider payments, email/SMS notifications, real advertising attribution and production deployment require owner configuration.
+> **MVP boundaries:** bKash, Nagad, social syncs, Messenger webhooks, and advertising integrations are simulations. No wallet funds move and no external messages are sent. Customers use anonymous browser sessions; cross-device access uses the private tracking link.
 
-## Restricted Windows verification
+## Under the canvas
 
-If the managed Windows environment rejects npm’s default child shell, set NPM_CONFIG_SCRIPT_SHELL to C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe for that terminal session. Next.js uses the TypeScript API checker with worker threads, and unit tests use Node’s in-process test mode; full type validation and tests remain enabled. Browser screenshot QA requires an available browser session.
+| Layer | Implementation |
+| --- | --- |
+| Storefront & admin | Next.js App Router, React, TypeScript |
+| Styling & icons | Tailwind CSS, responsive CSS, Lucide |
+| API state | TanStack Query and a shared Fetch wrapper |
+| Backend | Next.js route handlers |
+| Database | PostgreSQL / Neon with a Vercel-aware connection pool |
+| Product uploads | Private Neon object storage, served through the application |
+| Authentication | Signed JWT sessions in HTTP-only cookies |
+| Delivery | Vercel production deployment from GitHub `main` |
+
+### Find your way around
+
+| Route | Purpose |
+| --- | --- |
+| `/` | Storefront and featured collection |
+| `/shop` | Searchable, paginated collection |
+| `/saved` | Favourites saved on this device |
+| `/cart` | Bag, customization notes, and checkout |
+| `/track` | Private tracking and same-browser order history |
+| `/admin` | Protected shop workspace |
+
+## Run it locally
+
+**Requirements:** Node.js 24 LTS and npm.
+
+```sh
+npm ci
+cp .env.example .env.local
+```
+
+Set `ADMIN_EMAIL`, an `ADMIN_PASSWORD` of at least 12 characters, and a random `SESSION_SECRET` of at least 32 characters. Keep all credentials in ignored environment files.
+
+```sh
+npm run dev
+```
+
+Open **http://localhost:3000**. Sign in at **/admin** with your configured credentials.
+
+Without `DATABASE_URL`, the app uses persistent local demo storage in `data/store.json`. Local photo uploads remain available without cloud storage. Production uses PostgreSQL and configured object storage.
+
+<details>
+<summary><strong>Checks, production builds, and the complete order-flow test</strong></summary>
+
+```sh
+npm run lint
+npm run typecheck
+npm test
+npm run build
+npm run start
+```
+
+With a separate local demo server running:
+
+```sh
+npm run test:e2e
+```
+
+The smoke test checks checkout, order privacy, admin CRUD, photo upload, status changes, stale-edit protection, social mocks, rendered pages, and real images. It refuses to create fixtures when the server reports a connected database.
+
+For managed Windows shell settings and environment isolation, see the [operations guide](docs/OPERATIONS.md).
+
+</details>
+
+## Push to main. Ship to the shop.
+
+**Production:** [churicanvas.vercel.app](https://churicanvas.vercel.app)
+
+Vercel is connected to [proffesergio/churi-canvas](https://github.com/proffesergio/churi-canvas) and tracks `main` for production. Every push to `main` starts a deployment and updates the production domain after verification and build succeed.
+
+- **GitHub Actions** checks lint, types, unit tests, a production build, and the local storefront-to-admin flow.
+- **Vercel** runs lint, types, unit tests, and the production build before publishing.
+- Vercel's native Git integration owns deployment; a second GitHub Actions deployment job is unnecessary.
+- Runtime secrets belong in Vercel project environment variables, never in the repository.
+
+See the [operations guide](docs/OPERATIONS.md) for database, storage, environment, and deployment details.
+
+---
+
+<div align="center">
+<sub>Rooted in Bangladesh. Made by hand. Worn with heart.</sub>
+</div>
