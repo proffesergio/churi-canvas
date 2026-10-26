@@ -1,0 +1,61 @@
+name: Verify and deploy ChuriCanvas
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+      ADMIN_EMAIL: ci@churicanvas.test
+      ADMIN_PASSWORD: ci-verification-only-password
+      SESSION_SECRET: ci-verification-only-secret-at-least-32-characters
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - name: Verify the complete order pipeline
+        run: |
+          npm run start > /tmp/churicanvas.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID"' EXIT
+          for attempt in {1..30}; do
+            if curl --fail --silent http://localhost:3000/api/products > /dev/null; then break; fi
+            sleep 1
+          done
+          npm run test:e2e
+  deploy:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: verify
+    runs-on: ubuntu-latest
+    concurrency:
+      group: churicanvas-production
+      cancel-in-progress: false
+    environment: production
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Check deployment configuration
+        run: |
+          test -n "$VERCEL_TOKEN" || { echo 'Add VERCEL_TOKEN to repository secrets.'; exit 1; }
+          test -n "$VERCEL_ORG_ID" || { echo 'Add VERCEL_ORG_ID to repository secrets.'; exit 1; }
+          test -n "$VERCEL_PROJECT_ID" || { echo 'Add VERCEL_PROJECT_ID to repository secrets.'; exit 1; }
+      - name: Deploy to Vercel
+        run: npx --yes vercel@54.18.1 deploy --prod --yes --token "$VERCEL_TOKEN"

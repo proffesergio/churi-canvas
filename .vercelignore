@@ -1,0 +1,5 @@
+.env*
+.npm-cache/
+data/
+artifacts/
+product_images/
