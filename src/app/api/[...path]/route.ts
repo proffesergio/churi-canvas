@@ -1,3 +1,5 @@
+import { collectLead, convertLead } from '@/lib/leads';
+import { leadSchema, leadUpdateSchema } from '@/lib/validation';
 import { catalog } from '@/lib/catalog';
 import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
@@ -14,6 +16,16 @@ import { cookies } from 'next/headers';
 import { checkoutSchema, productSchema, statusSchema } from '@/lib/validation';
 import { HttpError, placeOrder, publicOrder } from '@/lib/orders';
 import { persistProductImages, storageConfigured } from '@/lib/storage';
+import {
+  fetchFacebookPosts,
+  fetchTikTokVideos,
+  publicSocial,
+  resolveToken,
+  socialView,
+  verifyFacebookPage,
+  verifyTikTokProfile,
+} from '@/lib/social';
+import { encryptSecret } from '@/lib/secrets';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 async function body(request: NextRequest) {
@@ -54,6 +66,34 @@ async function productImages(images: string[]) {
     );
   }
 }
+const facebookSettings = z.object({
+  enabled: z.boolean(),
+  accountId: z.string().trim().max(120),
+  url: z
+    .string()
+    .trim()
+    .max(500)
+    .refine(
+      (value) =>
+        !value ||
+        /^https:\/\/(?:www\.|web\.|m\.)?(?:facebook|fb)\.com\//i.test(value),
+      'Enter a Facebook Page URL starting with https://.',
+    ),
+  accessToken: z.string().trim().max(4000).optional(),
+});
+const tiktokSettings = z.object({
+  enabled: z.boolean(),
+  accountId: z.string().trim().max(120),
+  url: z
+    .string()
+    .trim()
+    .max(500)
+    .refine(
+      (value) => !value || /^https:\/\/(?:www\.)?tiktok\.com\//i.test(value),
+      'Enter a TikTok profile URL starting with https://.',
+    ),
+  accessToken: z.string().trim().max(4000).optional(),
+});
 async function handle(request: NextRequest) {
   try {
     const route = request.nextUrl.pathname.slice(5).split('/').filter(Boolean);
@@ -204,6 +244,24 @@ async function dispatch(
       return publicOrder(order);
     });
   }
+  if (r[0] === 'social' && m === 'GET')
+    return withStore((s) => publicSocial(s.social));
+  if (r[0] === 'leads' && r.length === 1 && m === 'POST') {
+    const input = leadSchema.parse(await body(request));
+    const ip = process.env.VERCEL ? request.headers.get('x-vercel-forwarded-for') || 'unknown' : 'local';
+    const allowed = await withStore(s => {
+      const now = Date.now();
+      for (const [key, value] of Object.entries(s.loginAttempts)) if (value.reset < now) delete s.loginAttempts[key];
+      const key = 'lead:' + ip;
+      const limit = s.loginAttempts[key] || { count: 0, reset: now + 3600000 };
+      limit.count++;
+      s.loginAttempts[key] = limit;
+      return limit.count <= 10;
+    }, true);
+    if (!allowed) throw new HttpError(429, 'Too many enquiries. Please try again in an hour.');
+    await withStore(s => { collectLead(s, input); }, true);
+    return { ok: true };
+  }
   if (r[0] === 'events' && m === 'POST') {
     const input = z
       .object({ type: z.enum(['PageView', 'AddToCart']) })
@@ -224,8 +282,27 @@ async function dispatch(
   }
   if (r[0] === 'admin') {
     await requireAdmin();
+    if (r[1] === 'leads' && r.length === 2 && m === 'POST') {
+      const input = leadSchema.parse(await body(request));
+      return withStore(s => ({ lead: collectLead(s, input) }), true);
+    }
+    if (r[1] === 'leads' && r[2] && r.length === 3 && m === 'PATCH') {
+      const input = leadUpdateSchema.parse(await body(request));
+      return withStore(s => {
+        const lead = s.leads.find(l => l.id === r[2]);
+        if (!lead) throw new HttpError(404, 'Lead not found.');
+        if (lead.orderId) throw new HttpError(409, 'Converted leads are managed in Orders.');
+        Object.assign(lead, input, { updatedAt: new Date().toISOString() });
+        return { ok: true };
+      }, true);
+    }
+    if (r[1] === 'leads' && r[2] && r[3] === 'order' && r.length === 4 && m === 'POST') {
+      const input = checkoutSchema.parse(await body(request));
+      return withStore(s => ({ orderId: convertLead(s, r[2], input).id }), true);
+    }
     if (r[1] === 'overview' && m === 'GET')
       return withStore((s) => ({
+        leads: s.leads,
         products: s.products,
         orders: s.orders.map((o) => ({
           ...o,
@@ -233,7 +310,7 @@ async function dispatch(
           customerId: undefined,
           idempotencyKey: undefined,
         })),
-        social: s.social,
+        social: socialView(s.social),
         analytics: {
           PageView: s.events.filter((e) => e.type === 'PageView').length,
           AddToCart: s.events.filter((e) => e.type === 'AddToCart').length,
@@ -297,7 +374,244 @@ async function dispatch(
         return { ok: true };
       }, true);
     }
-    if (r[1] === 'social' && m === 'POST') {
+    if (r[1] === 'social' && r[2] === 'facebook' && m === 'PUT') {
+      const input = facebookSettings.parse(await body(request));
+      if (input.enabled && !input.accountId && !input.url)
+        throw new HttpError(
+          400,
+          'Add your Facebook Page ID or Page URL before enabling the integration.',
+        );
+      return withStore((s) => {
+        const current = s.social.facebook;
+        const token = input.accessToken
+          ? encryptSecret(input.accessToken)
+          : current.token;
+        const hasToken = Boolean(
+          token || process.env.FACEBOOK_PAGE_ACCESS_TOKEN,
+        );
+        const identityChanged = input.accountId !== current.accountId;
+        const status = !hasToken
+          ? 'disconnected'
+          : input.accessToken || identityChanged
+            ? 'disconnected'
+            : current.status;
+        s.social.facebook = {
+          ...current,
+          enabled: input.enabled,
+          accountId: input.accountId,
+          url: input.url,
+          token,
+          status,
+          verifiedAt: status === 'disconnected' ? null : current.verifiedAt,
+          error: null,
+        };
+        return {
+          ok: true,
+          message: 'Facebook Page settings saved.',
+          social: socialView(s.social),
+        };
+      }, true);
+    }
+    if (r[1] === 'social' && r[2] === 'facebook' && m === 'POST') {
+      const input = z
+        .object({ action: z.enum(['test', 'sync']) })
+        .parse(await body(request));
+      const connection = await withStore((s) => s.social.facebook);
+      const token = resolveToken(connection, 'facebook');
+      if (!token)
+        throw new HttpError(
+          400,
+          'Add a Facebook Page access token before testing the connection.',
+        );
+      try {
+        const page = await verifyFacebookPage({
+          accountId: connection.accountId,
+          token,
+        });
+        const posts =
+          input.action === 'sync'
+            ? await fetchFacebookPosts(page.accountId, token)
+            : connection.posts;
+        const now = new Date().toISOString();
+        return await withStore((s) => {
+          s.social.facebook = {
+            ...s.social.facebook,
+            ...page,
+            posts,
+            count:
+              input.action === 'sync'
+                ? posts.length
+                : s.social.facebook.count,
+            syncedAt:
+              input.action === 'sync' ? now : s.social.facebook.syncedAt,
+            status: 'connected',
+            verifiedAt: now,
+            error: null,
+          };
+          return {
+            ok: true,
+            message:
+              input.action === 'sync'
+                ? `Synced ${posts.length} Facebook posts.`
+                : `Connected to ${page.accountName}.`,
+            social: socialView(s.social),
+          };
+        }, true);
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : 'Facebook could not be reached.';
+        await withStore((s) => {
+          s.social.facebook = {
+            ...s.social.facebook,
+            status: 'error',
+            error: message,
+          };
+        }, true).catch(() => {});
+        throw new HttpError(502, message);
+      }
+    }
+    if (r[1] === 'social' && r[2] === 'facebook' && m === 'DELETE') {
+      return withStore((s) => {
+        s.social.facebook = {
+          ...s.social.facebook,
+          enabled: false,
+          token: '',
+          status: 'disconnected',
+          followers: null,
+          verifiedAt: null,
+          error: null,
+          syncedAt: null,
+          count: 0,
+          posts: [],
+        };
+        return {
+          ok: true,
+          message: 'Facebook Page disconnected.',
+          social: socialView(s.social),
+        };
+      }, true);
+    }
+    if (r[1] === 'social' && r[2] === 'tiktok' && m === 'PUT') {
+      const input = tiktokSettings.parse(await body(request));
+      if (input.enabled && !input.accountId && !input.url)
+        throw new HttpError(
+          400,
+          'Add your TikTok username or profile URL before enabling the integration.',
+        );
+      return withStore((s) => {
+        const current = s.social.tiktok;
+        const token = input.accessToken
+          ? encryptSecret(input.accessToken)
+          : current.token;
+        const hasToken = Boolean(token || process.env.TIKTOK_ACCESS_TOKEN);
+        const identityChanged = input.accountId !== current.accountId;
+        const status = !hasToken
+          ? 'disconnected'
+          : input.accessToken || identityChanged
+            ? 'disconnected'
+            : current.status;
+        s.social.tiktok = {
+          ...current,
+          enabled: input.enabled,
+          accountId: input.accountId,
+          url: input.url,
+          token,
+          status,
+          verifiedAt: status === 'disconnected' ? null : current.verifiedAt,
+          error: null,
+        };
+        return {
+          ok: true,
+          message: 'TikTok settings saved.',
+          social: socialView(s.social),
+        };
+      }, true);
+    }
+    if (r[1] === 'social' && r[2] === 'tiktok' && m === 'POST') {
+      const input = z
+        .object({ action: z.enum(['test', 'sync']) })
+        .parse(await body(request));
+      const connection = await withStore((s) => s.social.tiktok);
+      const token = resolveToken(connection, 'tiktok');
+      if (!token)
+        throw new HttpError(
+          400,
+          'Add a TikTok access token before testing the connection.',
+        );
+      try {
+        const profile = await verifyTikTokProfile({
+          accountId: connection.accountId,
+          url: connection.url,
+          token,
+        });
+        const videos =
+          input.action === 'sync'
+            ? await fetchTikTokVideos(token)
+            : connection.videos;
+        const now = new Date().toISOString();
+        return await withStore((s) => {
+          s.social.tiktok = {
+            ...s.social.tiktok,
+            ...profile,
+            videos,
+            count:
+              input.action === 'sync'
+                ? videos.length
+                : s.social.tiktok.count,
+            syncedAt:
+              input.action === 'sync' ? now : s.social.tiktok.syncedAt,
+            status: 'connected',
+            verifiedAt: now,
+            error: null,
+          };
+          return {
+            ok: true,
+            message:
+              input.action === 'sync'
+                ? `Synced ${videos.length} TikTok videos.`
+                : `Connected to ${profile.accountName}.`,
+            social: socialView(s.social),
+          };
+        }, true);
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : 'TikTok could not be reached.';
+        await withStore((s) => {
+          s.social.tiktok = {
+            ...s.social.tiktok,
+            status: 'error',
+            error: message,
+          };
+        }, true).catch(() => {});
+        throw new HttpError(502, message);
+      }
+    }
+    if (r[1] === 'social' && r[2] === 'tiktok' && m === 'DELETE') {
+      return withStore((s) => {
+        s.social.tiktok = {
+          ...s.social.tiktok,
+          enabled: false,
+          token: '',
+          status: 'disconnected',
+          followers: null,
+          verifiedAt: null,
+          error: null,
+          syncedAt: null,
+          count: 0,
+          videos: [],
+        };
+        return {
+          ok: true,
+          message: 'TikTok disconnected.',
+          social: socialView(s.social),
+        };
+      }, true);
+    }
+    if (r[1] === 'social' && !r[2] && m === 'POST') {
       const input = z
         .object({
           action: z.enum(['facebook-sync', 'tiktok-sync', 'mock-webhook']),
@@ -334,10 +648,18 @@ async function dispatch(
               anchor: platform === 'tiktok' ? 'mock-video-' + p.id : undefined,
             })),
           );
-        s.social[platform] = {
-          syncedAt: new Date().toISOString(),
-          count: variants.length,
-        };
+        if (platform === 'facebook')
+          s.social.facebook = {
+            ...s.social.facebook,
+            syncedAt: new Date().toISOString(),
+            count: variants.length,
+          };
+        else
+          s.social.tiktok = {
+            ...s.social.tiktok,
+            syncedAt: new Date().toISOString(),
+            count: variants.length,
+          };
         return {
           ok: true,
           message:

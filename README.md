@@ -47,7 +47,7 @@ The starter collection includes **nine real product photos**. Titles, prices, av
 | Choose **2.4, 2.6, or 2.8** and add a custom note | Upload multiple photos and choose a cover |
 | Check out with a Bangladeshi mobile number and address | Review addresses, payment methods, and custom notes |
 | Choose **Inside Dhaka / Outside Dhaka** delivery | Update fulfilment status from a phone |
-| Follow a private order-tracking link | View storefront events and try social-channel simulations |
+| Follow a private order-tracking link | View storefront events and manage social channels |
 
 **Built around Bangladesh:** prices in **৳ BDT**, cash on delivery, local delivery zones, and clearly labelled **bKash / Nagad demo workflows**.
 
@@ -65,10 +65,10 @@ The server calculates totals from current inventory, checks stock across duplica
 
 - **Private by default:** signed HTTP-only customer/admin sessions, protected admin APIs, validated requests, and order tracking that omits contact details.
 - **A resilient storefront:** TanStack Query synchronization, safe-read retries, request timeouts, toast feedback, and recovery screens.
-- **A social studio to explore:** simulated Facebook catalog sync, TikTok product/variant anchors, and inbound Messenger enquiries.
-- **Useful signals:** PageView, AddToCart, and server-recorded Purchase events.
+- **A social studio that connects:** manage a Facebook Page and TikTok profile from the admin workspace, verify credentials, sync recent posts or videos, and show enabled profiles on the storefront.
+- **Useful signals:** Vercel Web Analytics on the storefront plus PageView, AddToCart, and server-recorded Purchase events.
 
-> **MVP boundaries:** bKash, Nagad, social syncs, Messenger webhooks, and advertising integrations are simulations. No wallet funds move and no external messages are sent. Customers use anonymous browser sessions; cross-device access uses the private tracking link.
+> **MVP boundaries:** bKash, Nagad, Messenger webhooks, and advertising integrations are simulations. Social credentials are optional and encrypted at rest; without them the storefront simply hides the social links. No wallet funds move and no external messages are sent. Customers use anonymous browser sessions; cross-device access uses the private tracking link.
 
 ## Under the canvas
 
@@ -130,7 +130,7 @@ With a separate local demo server running:
 npm run test:e2e
 ```
 
-The smoke test checks checkout, order privacy, admin CRUD, photo upload, status changes, stale-edit protection, social mocks, rendered pages, and real images. It refuses to create fixtures when the server reports a connected database.
+The smoke test checks checkout, order privacy, admin CRUD, photo upload, status changes, stale-edit protection, social mock actions, rendered pages, and real images. It refuses to create fixtures when the server reports a connected database.
 
 For managed Windows shell settings and environment isolation, see the [operations guide](docs/OPERATIONS.md).
 

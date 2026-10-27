@@ -15,6 +15,7 @@ import {
   X,
 } from 'lucide-react';
 import { usePersistent } from '@/lib/persistent';
+import { SocialLinks } from './social-links';
 import type { CartLine } from '@/lib/model';
 export function Brand() {
   return (
@@ -175,6 +176,7 @@ export function Shell({
           <p>
             <Instagram size={16} /> Handmade in Bangladesh
           </p>
+          <SocialLinks />
           <Link href="/admin">
             Admin workspace <ArrowUpRight size={14} />
           </Link>

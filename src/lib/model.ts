@@ -36,6 +36,8 @@ export type OrderItem = CartLine & {
   image: string;
 };
 export type Order = {
+  source?: 'Storefront' | 'Facebook' | 'TikTok';
+  leadId?: string;
   id: string;
   token: string;
   customerId: string;
@@ -62,18 +64,95 @@ export type PixelEvent = {
   value: number;
   source: 'Storefront' | 'Facebook' | 'TikTok';
 };
+export type SocialPost = {
+  id: string;
+  message: string;
+  image: string | null;
+  url: string;
+  createdAt: string;
+};
+export type SocialVideo = {
+  id: string;
+  title: string;
+  cover: string | null;
+  url: string;
+  createdAt: string;
+  views: number;
+  likes: number;
+};
+export type SocialMessage = {
+  id: string;
+  name: string;
+  text: string;
+  at: string;
+  source: string;
+};
+export type SocialStatus = 'disconnected' | 'connected' | 'error';
+export type SocialConnection = {
+  enabled: boolean;
+  accountId: string;
+  accountName: string;
+  url: string;
+  token: string;
+  status: SocialStatus;
+  followers: number | null;
+  verifiedAt: string | null;
+  error: string | null;
+};
+export type FacebookState = SocialConnection & {
+  syncedAt: string | null;
+  count: number;
+  posts: SocialPost[];
+};
+export type TikTokState = SocialConnection & {
+  syncedAt: string | null;
+  count: number;
+  videos: SocialVideo[];
+};
 export type SocialState = {
-  facebook: { syncedAt: string | null; count: number };
-  tiktok: { syncedAt: string | null; count: number };
-  messages: {
-    id: string;
-    name: string;
-    text: string;
-    at: string;
-    source: string;
-  }[];
+  facebook: FacebookState;
+  tiktok: TikTokState;
+  messages: SocialMessage[];
+};
+export type SocialConnectionView = Omit<SocialConnection, 'token'> & {
+  hasToken: boolean;
+  tokenHint: string;
+};
+export type FacebookView = SocialConnectionView & {
+  syncedAt: string | null;
+  count: number;
+  posts: SocialPost[];
+};
+export type TikTokView = SocialConnectionView & {
+  syncedAt: string | null;
+  count: number;
+  videos: SocialVideo[];
+};
+export type SocialView = {
+  facebook: FacebookView;
+  tiktok: TikTokView;
+  messages: SocialMessage[];
+};
+export type PublicSocial = {
+  facebook: { name: string; url: string; followers: number | null } | null;
+  tiktok: { name: string; url: string; followers: number | null } | null;
+};
+export const leadStatuses = ['New', 'Contacted', 'Qualified', 'Lost', 'Converted'] as const;
+export type Lead = {
+  id: string;
+  source: 'Facebook' | 'TikTok';
+  name: string;
+  phone: string;
+  message: string;
+  notes: string;
+  status: (typeof leadStatuses)[number];
+  createdAt: string;
+  updatedAt: string;
+  orderId?: string;
+  submissionKey: string;
 };
 export type Store = {
+  leads: Lead[];
   products: Product[];
   orders: Order[];
   events: PixelEvent[];
@@ -83,6 +162,61 @@ export type Store = {
 export const money = (amount: number) => '৳' + amount.toLocaleString('en-BD');
 export const deliveryFee = (zone: string) =>
   zone === 'Inside Dhaka' ? 70 : 130;
+export function initialSocial(): SocialState {
+  return {
+    facebook: {
+      enabled: true,
+      accountId: '',
+      accountName: 'ChuriCanvas',
+      url: 'https://www.facebook.com/bdchuricanvas',
+      token: '',
+      status: 'disconnected',
+      followers: null,
+      verifiedAt: null,
+      error: null,
+      syncedAt: null,
+      count: 0,
+      posts: [],
+    },
+    tiktok: {
+      enabled: false,
+      accountId: '',
+      accountName: '',
+      url: '',
+      token: '',
+      status: 'disconnected',
+      followers: null,
+      verifiedAt: null,
+      error: null,
+      syncedAt: null,
+      count: 0,
+      videos: [],
+    },
+    messages: [],
+  };
+}
+export function normalizeStore(store: Store): Store {
+  const defaults = initialSocial();
+  const social = store.social || defaults;
+  const facebook = { ...defaults.facebook, ...(social.facebook || {}) };
+  if (!facebook.url && !facebook.accountId) Object.assign(facebook, { url: defaults.facebook.url, accountName: 'ChuriCanvas', enabled: true });
+  const tiktok = { ...defaults.tiktok, ...(social.tiktok || {}) };
+  return {
+    ...store,
+    leads: Array.isArray(store.leads) ? store.leads : [],
+    social: {
+      facebook: {
+        ...facebook,
+        posts: Array.isArray(facebook.posts) ? facebook.posts : [],
+      },
+      tiktok: {
+        ...tiktok,
+        videos: Array.isArray(tiktok.videos) ? tiktok.videos : [],
+      },
+      messages: Array.isArray(social.messages) ? social.messages : [],
+    },
+  };
+}
 export function initialStore(): Store {
   const names = [
     'Shurjomukhi Floral Pair',
@@ -96,6 +230,7 @@ export function initialStore(): Store {
     'Everyday Elegance',
   ];
   return {
+    leads: [],
     products: names.map((title, i) => ({
       id: 'churi-' + (i + 1),
       revision: 1,
@@ -119,11 +254,7 @@ export function initialStore(): Store {
     })),
     orders: [],
     events: [],
-    social: {
-      facebook: { syncedAt: null, count: 0 },
-      tiktok: { syncedAt: null, count: 0 },
-      messages: [],
-    },
+    social: initialSocial(),
     loginAttempts: {},
   };
 }

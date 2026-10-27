@@ -1,5 +1,7 @@
 'use client';
 import Image from 'next/image';
+import { SocialLeads } from './social-leads';
+import type { Lead } from '@/lib/model';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useRef, useState } from 'react';
@@ -31,8 +33,11 @@ import {
   ExternalLink,
   Facebook,
   Video,
-  MessageCircle,
   X,
+  Wifi,
+  WifiOff,
+  Unplug,
+  KeyRound,
 } from 'lucide-react';
 import { Brand } from './shell';
 import { Sheet } from './sheet';
@@ -44,12 +49,15 @@ import {
   sizes,
   type Product,
   type Order,
-  type SocialState,
+  type SocialView,
+  type FacebookView,
+  type TikTokView,
 } from '@/lib/model';
 type Overview = {
+  leads: Lead[];
   products: Product[];
   orders: Order[];
-  social: SocialState;
+  social: SocialView;
   analytics: {
     PageView: number;
     AddToCart: number;
@@ -181,6 +189,7 @@ export function Admin() {
       });
       await client.invalidateQueries({ queryKey: ['admin-overview'] });
       await client.invalidateQueries({ queryKey: ['products'] });
+      await client.invalidateQueries({ queryKey: ['public-social'] });
       toast(result.message || 'Your shop is up to date.');
       return true;
     } catch (error) {
@@ -354,7 +363,7 @@ export function Admin() {
                       : data.storage === 'Local demo'
                         ? 'Photos saved locally'
                         : 'Object Storage unavailable'}{' '}
-                    · Payments &amp; social channels are simulations
+                    · Payments remain a simulation
                   </span>
                 </div>
                 {(tab === 'Overview' || tab === 'Analytics') && (
@@ -502,8 +511,8 @@ export function Admin() {
                         </span>
                         <h2>A little more connected.</h2>
                         <p>
-                          Try catalog sync, Messenger order requests, and
-                          conversion events.
+                          Connect your Facebook Page and TikTok profile, pull
+                          in your latest posts, and keep your community close.
                         </p>
                       </div>
                       <button
@@ -767,121 +776,98 @@ export function Admin() {
                 )}
                 {tab === 'Social studio' && (
                   <>
+                    <SocialLeads leads={data.leads} products={data.products} onOrder={id => { changeTab('Orders'); setQuery(id); }} />
                     <div className="mock-notice">
                       <AlertCircle size={20} />
                       <div>
-                        <strong>A safe space to try things.</strong>
+                        <strong>Connect the pages behind your shop.</strong>
                         <p>
-                          These modules use mock endpoints. No external accounts
-                          are connected, no ads are running, and no messages are
-                          sent.
+                          Add your Facebook Page and TikTok credentials to pull
+                          in your latest posts and profile stats. Tokens are
+                          encrypted before they are saved and are never sent
+                          back to this browser. Manage real enquiries and orders
+                          in the lead panel above.
                         </p>
                       </div>
                     </div>
                     <div className="social-grid">
-                      {[
-                        {
-                          platform: 'facebook' as const,
-                          title: 'Facebook catalog',
-                          Icon: Facebook,
-                          action: 'facebook-sync',
-                          text: 'Simulate publishing your visible pieces and size variants to a Meta catalog.',
-                        },
-                        {
-                          platform: 'tiktok' as const,
-                          title: 'TikTok Shop',
-                          Icon: Video,
-                          action: 'tiktok-sync',
-                          text: 'Simulate variant inventory sync with product anchors for your videos.',
-                        },
-                      ].map(({ platform, title, Icon, action, text }) => (
-                        <section
-                          className="admin-panel social-card"
-                          key={platform}
-                        >
-                          <div className="social-card-top">
-                            <span className={'social-icon ' + platform}>
-                              <Icon size={25} />
-                            </span>
-                            <span className="mock-tag">MOCK CONNECTION</span>
-                          </div>
-                          <h2>{title}</h2>
-                          <p>{text}</p>
-                          <div className="sync-detail">
-                            <span>
-                              {data.social[platform].count} variants synced
-                            </span>
-                            <small>
-                              {data.social[platform].syncedAt
-                                ? 'Last sync ' +
-                                  new Date(
-                                    data.social[platform].syncedAt!,
-                                  ).toLocaleString('en-GB')
-                                : 'Ready for your first sync'}
-                            </small>
-                          </div>
-                          <button
-                            className="secondary"
-                            disabled={busy !== null}
-                            onClick={() =>
-                              act(action, 'admin/social', 'POST', { action })
-                            }
-                          >
-                            <RefreshCw size={16} />
-                            {busy === action ? 'Syncing…' : 'Sync inventory'}
-                          </button>
-                        </section>
-                      ))}
+                      <SocialConnectionCard
+                        key={
+                          'facebook:' +
+                          data.social.facebook.accountId +
+                          ':' +
+                          data.social.facebook.url +
+                          ':' +
+                          data.social.facebook.enabled +
+                          ':' +
+                          data.social.facebook.status +
+                          ':' +
+                          (data.social.facebook.verifiedAt || '')
+                        }
+                        platform="facebook"
+                        connection={data.social.facebook}
+                        busy={busy}
+                        onSave={(value) =>
+                          act(
+                            'facebook-save',
+                            'admin/social/facebook',
+                            'PUT',
+                            value,
+                          )
+                        }
+                        onAction={(action) =>
+                          act(
+                            'facebook-' + action,
+                            'admin/social/facebook',
+                            'POST',
+                            { action },
+                          )
+                        }
+                        onDisconnect={() =>
+                          act(
+                            'facebook-disconnect',
+                            'admin/social/facebook',
+                            'DELETE',
+                          )
+                        }
+                      />
+                      <SocialConnectionCard
+                        key={
+                          'tiktok:' +
+                          data.social.tiktok.accountId +
+                          ':' +
+                          data.social.tiktok.url +
+                          ':' +
+                          data.social.tiktok.enabled +
+                          ':' +
+                          data.social.tiktok.status +
+                          ':' +
+                          (data.social.tiktok.verifiedAt || '')
+                        }
+                        platform="tiktok"
+                        connection={data.social.tiktok}
+                        busy={busy}
+                        onSave={(value) =>
+                          act('tiktok-save', 'admin/social/tiktok', 'PUT', value)
+                        }
+                        onAction={(action) =>
+                          act(
+                            'tiktok-' + action,
+                            'admin/social/tiktok',
+                            'POST',
+                            { action },
+                          )
+                        }
+                        onDisconnect={() =>
+                          act(
+                            'tiktok-disconnect',
+                            'admin/social/tiktok',
+                            'DELETE',
+                          )
+                        }
+                      />
                     </div>
-                    <section className="admin-panel messenger-panel">
-                      <div className="panel-heading">
-                        <div>
-                          <h2>
-                            <MessageCircle size={20} />
-                            Messenger order requests
-                          </h2>
-                          <p>
-                            Simulated inbound webhooks. Review requests before
-                            creating a real order.
-                          </p>
-                        </div>
-                        <button
-                          className="secondary"
-                          disabled={busy !== null}
-                          onClick={() =>
-                            act('webhook', 'admin/social', 'POST', {
-                              action: 'mock-webhook',
-                            })
-                          }
-                        >
-                          <Plus size={16} />
-                          Simulate webhook
-                        </button>
-                      </div>
-                      {data.social.messages.length === 0 ? (
-                        <AdminEmpty
-                          title="Your inbox is a quiet little place."
-                          text="Simulate a Messenger webhook to see an incoming order enquiry."
-                        />
-                      ) : (
-                        data.social.messages.map((message) => (
-                          <div className="message-row" key={message.id}>
-                            <span className="order-initial">S</span>
-                            <div>
-                              <strong>{message.name}</strong>
-                              <small>
-                                {message.source} ·{' '}
-                                {new Date(message.at).toLocaleTimeString(
-                                  'en-GB',
-                                  { hour: '2-digit', minute: '2-digit' },
-                                )}
-                              </small>
-                              <p>{message.text}</p>
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </section>
+
                   </>
                 )}
                 {tab === 'Analytics' && (
@@ -967,14 +953,35 @@ export function Admin() {
                           <strong>{data.analytics.Purchase} orders</strong>
                         </div>
                         <div className="channel-row">
-                          <span>Meta Ads</span>
-                          <span className="mock-tag">NOT CONNECTED</span>
+                          <span>Vercel Web Analytics</span>
+                          <strong>Active on the storefront</strong>
                         </div>
                         <div className="channel-row">
-                          <span>TikTok Ads</span>
-                          <span className="mock-tag">NOT CONNECTED</span>
+                          <span>Facebook Page</span>
+                          {data.social.facebook.enabled ? (
+                            <strong>
+                              {data.social.facebook.status === 'connected'
+                                ? 'Connected'
+                                : 'Configured'}
+                            </strong>
+                          ) : (
+                            <span className="mock-tag">NOT CONNECTED</span>
+                          )}
+                        </div>
+                        <div className="channel-row">
+                          <span>TikTok</span>
+                          {data.social.tiktok.enabled ? (
+                            <strong>
+                              {data.social.tiktok.status === 'connected'
+                                ? 'Connected'
+                                : 'Configured'}
+                            </strong>
+                          ) : (
+                            <span className="mock-tag">NOT CONNECTED</span>
+                          )}
                         </div>
                         <p>
+                          Vercel Web Analytics records storefront visits.
                           PageView, AddToCart and Purchase events are ready to
                           map to external pixels. Real ad spend, ROAS and
                           conversion attribution require live credentials and
@@ -1414,6 +1421,270 @@ function ProductEditor({
         </div>
       </form>
     </Sheet>
+  );
+}
+function SocialConnectionCard({
+  platform,
+  connection,
+  busy,
+  onSave,
+  onAction,
+  onDisconnect,
+}: {
+  platform: 'facebook' | 'tiktok';
+  connection: FacebookView | TikTokView;
+  busy: string | null;
+  onSave: (value: {
+    enabled: boolean;
+    accountId: string;
+    url: string;
+    accessToken?: string;
+  }) => Promise<boolean>;
+  onAction: (action: 'test' | 'sync') => Promise<boolean>;
+  onDisconnect: () => Promise<boolean>;
+}) {
+  const facebook = platform === 'facebook';
+  const facebookConnection =
+    platform === 'facebook' ? (connection as FacebookView) : null;
+  const tiktokConnection =
+    platform === 'tiktok' ? (connection as TikTokView) : null;
+  const Icon = facebook ? Facebook : Video;
+  const [accountId, setAccountId] = useState(connection.accountId);
+  const [url, setUrl] = useState(connection.url);
+  const [enabled, setEnabled] = useState(connection.enabled);
+  const [token, setToken] = useState('');
+  const [confirming, setConfirming] = useState(false);
+  const connected = connection.status === 'connected';
+  const hasToken = connection.hasToken || token.trim().length > 0;
+  const busyKey = (action: string) => platform + '-' + action;
+  return (
+    <section className="admin-panel social-card">
+      <div className="social-card-top">
+        <span className={'social-icon ' + platform}>
+          <Icon size={25} />
+        </span>
+        <span className={'social-status ' + connection.status}>
+          {connected ? <Wifi size={12} /> : <WifiOff size={12} />}
+          {connected
+            ? 'Connected'
+            : connection.status === 'error'
+              ? 'Needs attention'
+              : 'Not connected'}
+        </span>
+      </div>
+      <h2>{facebook ? 'Facebook Page' : 'TikTok profile'}</h2>
+      <p>
+        {facebook
+          ? 'Connect your Page to show live follower counts, your latest posts, and a follow link on the storefront.'
+          : 'Connect your TikTok profile to show your latest videos, follower count, and a follow link on the storefront.'}
+      </p>
+      <div className="social-stats">
+        <span>
+          <strong>
+            {connection.followers === null
+              ? '—'
+              : connection.followers.toLocaleString('en-US')}
+          </strong>
+          followers
+        </span>
+        <span>
+          <strong>{connection.count}</strong>
+          {facebook ? 'posts synced' : 'videos synced'}
+        </span>
+        <span>
+          <strong>
+            {connection.verifiedAt
+              ? new Date(connection.verifiedAt).toLocaleDateString('en-GB', {
+                  day: 'numeric',
+                  month: 'short',
+                })
+              : '—'}
+          </strong>
+          last checked
+        </span>
+      </div>
+      {connection.error && (
+        <p className="social-error">
+          <AlertCircle size={14} /> {connection.error}
+        </p>
+      )}
+      <form
+        className="social-form"
+        onSubmit={async (event) => {
+          event.preventDefault();
+          const ok = await onSave({
+            enabled,
+            accountId: accountId.trim(),
+            url: url.trim(),
+            ...(token.trim() ? { accessToken: token.trim() } : {}),
+          });
+          if (ok) setToken('');
+        }}
+      >
+        <label className="field">
+          {facebook ? 'Page ID' : 'Username or open ID'}
+          <input
+            value={accountId}
+            onChange={(event) => setAccountId(event.target.value)}
+            maxLength={120}
+            placeholder={facebook ? '1234567890' : '@yourhandle'}
+          />
+        </label>
+        <label className="field">
+          {facebook ? 'Page URL' : 'Profile URL'}
+          <input
+            value={url}
+            onChange={(event) => setUrl(event.target.value)}
+            maxLength={500}
+            type="url"
+            placeholder={
+              facebook
+                ? 'https://facebook.com/yourpage'
+                : 'https://tiktok.com/@yourhandle'
+            }
+          />
+        </label>
+        <label className="field">
+          {facebook ? 'Page access token' : 'Access token'}
+          <input
+            value={token}
+            onChange={(event) => setToken(event.target.value)}
+            maxLength={4000}
+            type="password"
+            autoComplete="off"
+            placeholder={
+              connection.hasToken
+                ? `Saved ${connection.tokenHint} — leave blank to keep`
+                : facebook
+                  ? 'Paste a Page access token'
+                  : 'Paste a TikTok access token'
+            }
+          />
+        </label>
+        <label className="checkbox-field">
+          <input
+            type="checkbox"
+            checked={enabled}
+            onChange={(event) => setEnabled(event.target.checked)}
+          />
+          <span>Show this profile on the storefront</span>
+        </label>
+        <div className="social-actions">
+          <button className="primary" disabled={busy !== null}>
+            {busy === busyKey('save') ? 'Saving…' : 'Save settings'}
+            <Check size={15} />
+          </button>
+          <button
+            type="button"
+            className="secondary"
+            disabled={busy !== null || !hasToken}
+            onClick={() => void onAction('test')}
+          >
+            <RefreshCw size={14} />
+            {busy === busyKey('test') ? 'Testing…' : 'Test connection'}
+          </button>
+          <button
+            type="button"
+            className="secondary"
+            disabled={busy !== null || !hasToken}
+            onClick={() => void onAction('sync')}
+          >
+            <RefreshCw size={14} />
+            {busy === busyKey('sync')
+              ? 'Syncing…'
+              : facebook
+                ? 'Sync posts'
+                : 'Sync videos'}
+          </button>
+        </div>
+        {connection.hasToken ? (
+          <div className="social-disconnect">
+            {confirming ? (
+              <>
+                <span>Remove the saved token and hide this profile?</span>
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => setConfirming(false)}
+                >
+                  Keep
+                </button>
+                <button
+                  type="button"
+                  className="primary danger-bg"
+                  disabled={busy !== null}
+                  onClick={async () => {
+                    if (await onDisconnect()) setConfirming(false);
+                  }}
+                >
+                  {busy === busyKey('disconnect')
+                    ? 'Disconnecting…'
+                    : 'Disconnect'}
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                className="text-link"
+                onClick={() => setConfirming(true)}
+              >
+                <Unplug size={14} /> Disconnect
+              </button>
+            )}
+          </div>
+        ) : (
+          <p className="fine-print">
+            <KeyRound size={13} /> Credentials are encrypted before they are
+            saved.
+          </p>
+        )}
+      </form>
+      {facebookConnection && facebookConnection.posts.length > 0 && (
+        <div className="social-preview">
+          {facebookConnection.posts.slice(0, 3).map((post) => (
+            <a key={post.id} href={post.url} target="_blank" rel="noreferrer">
+              {post.image ? (
+                <img src={post.image} alt="" />
+              ) : (
+                <span className="social-preview-fallback">
+                  <Facebook size={18} />
+                </span>
+              )}
+              <span className="social-preview-text">
+                {post.message || 'View post'}
+              </span>
+            </a>
+          ))}
+        </div>
+      )}
+      {tiktokConnection && tiktokConnection.videos.length > 0 && (
+        <div className="social-preview">
+          {tiktokConnection.videos.slice(0, 3).map((video) => (
+            <a key={video.id} href={video.url} target="_blank" rel="noreferrer">
+              {video.cover ? (
+                <img src={video.cover} alt="" />
+              ) : (
+                <span className="social-preview-fallback">
+                  <Video size={18} />
+                </span>
+              )}
+              <span className="social-preview-text">{video.title}</span>
+            </a>
+          ))}
+        </div>
+      )}
+      {connection.url && (
+        <a
+          className="text-link social-visit"
+          href={connection.url}
+          target="_blank"
+          rel="noreferrer"
+        >
+          Visit {facebook ? 'Facebook Page' : 'TikTok profile'}{' '}
+          <ExternalLink size={13} />
+        </a>
+      )}
+    </section>
   );
 }
 function OrderDetail({

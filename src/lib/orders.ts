@@ -14,6 +14,7 @@ export function placeOrder(
   store: Store,
   input: z.infer<typeof checkoutSchema>,
   customerId: string,
+  source: NonNullable<Order['source']> = 'Storefront',
 ): Order {
   const existing = store.orders.find(
     (o) =>
@@ -57,6 +58,7 @@ export function placeOrder(
   const delivery = deliveryFee(input.zone);
   const order: Order = {
     ...input,
+    source,
     id: 'CC-' + randomBytes(6).toString('hex').toUpperCase(),
     token: randomBytes(24).toString('hex'),
     customerId,
@@ -80,7 +82,7 @@ export function placeOrder(
     type: 'Purchase',
     at: now,
     value: order.total,
-    source: 'Storefront',
+    source,
   });
   store.events = store.events.slice(-10000);
   return order;

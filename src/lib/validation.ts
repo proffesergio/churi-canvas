@@ -68,3 +68,16 @@ export const checkoutSchema = z
       });
   });
 export const statusSchema = z.object({ status: z.enum(statuses) });
+
+export const leadSchema = z.object({
+  source: z.enum(['Facebook', 'TikTok']),
+  name: z.string().trim().min(2).max(80),
+  phone: z.string().trim().transform(v => v.replace(/[\s-]/g, '').replace(/^\+88/, '')).pipe(z.string().regex(/^01[3-9]\d{8}$/, 'Enter a valid Bangladeshi mobile number')),
+  message: z.string().trim().min(3).max(1500),
+  submissionKey: z.string().uuid(),
+  consent: z.literal(true),
+});
+export const leadUpdateSchema = z.object({
+  status: z.enum(['New', 'Contacted', 'Qualified', 'Lost']),
+  notes: z.string().trim().max(3000),
+});

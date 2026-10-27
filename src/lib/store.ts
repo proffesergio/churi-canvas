@@ -3,7 +3,7 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { Pool } from 'pg';
 import { attachDatabasePool } from '@vercel/functions';
-import { initialStore, type Store } from './model';
+import { initialStore, normalizeStore, type Store } from './model';
 
 const connectionString = process.env.DATABASE_URL;
 
@@ -70,7 +70,7 @@ export async function withStore<T>(
       const { rows } = await pool().query(
         'SELECT data FROM churicanvas_state WHERE id=1',
       );
-      return fn(rows[0].data as Store);
+      return fn(normalizeStore(rows[0].data as Store));
     }
     const client = await pool().connect();
     try {
@@ -78,7 +78,7 @@ export async function withStore<T>(
       const { rows } = await client.query(
         'SELECT data FROM churicanvas_state WHERE id=1 FOR UPDATE',
       );
-      const store = rows[0].data as Store;
+      const store = normalizeStore(rows[0].data as Store);
       const result = await fn(store);
       await client.query(
         'UPDATE churicanvas_state SET data=$1::jsonb WHERE id=1',
@@ -102,7 +102,7 @@ export async function withStore<T>(
     const file = path.join(directory, 'store.json');
     let state: Store;
     try {
-      state = JSON.parse(await readFile(file, 'utf8'));
+      state = normalizeStore(JSON.parse(await readFile(file, 'utf8')));
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
       state = initialStore();
